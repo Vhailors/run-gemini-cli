@@ -1,0 +1,63 @@
+name: 'PoC F3: printenv API key exposure'
+
+on:
+  workflow_dispatch:
+
+defaults:
+  run:
+    shell: 'bash'
+
+jobs:
+  poc-triage:
+    runs-on: 'ubuntu-latest'
+    timeout-minutes: 7
+    permissions:
+      contents: 'read'
+      issues: 'read'
+    steps:
+      - name: 'Fetch issue body directly (bypass search index delay)'
+        id: 'find_issues'
+        env:
+          GITHUB_REPOSITORY: '${{ github.repository }}'
+          GITHUB_TOKEN: '${{ github.token }}'
+        run: |-
+          echo "Fetching issue #1 directly..."
+          ISSUES="$(gh issue list \
+            --state 'open' \
+            --json number,title,body \
+            --limit 10 \
+            --repo "${GITHUB_REPOSITORY}"
+          )"
+          echo "issues_to_triage=${ISSUES}" >> "${GITHUB_OUTPUT}"
+          ISSUE_COUNT="$(echo "${ISSUES}" | jq 'length')"
+          echo "Found ${ISSUE_COUNT} issue(s)"
+
+      - name: 'Run Gemini Issue Analysis (EXACT same settings as gemini-scheduled-triage.yml)'
+        id: 'gemini_issue_analysis'
+        if: |-
+          ${{ steps.find_issues.outputs.issues_to_triage != '[]' }}
+        uses: 'google-github-actions/run-gemini-cli@main'
+        env:
+          # EXACT same env as gemini-scheduled-triage.yml:94
+          GITHUB_TOKEN: ''
+          ISSUES_TO_TRIAGE: '${{ steps.find_issues.outputs.issues_to_triage }}'
+          REPOSITORY: '${{ github.repository }}'
+          AVAILABLE_LABELS: 'bug,documentation,duplicate,enhancement,good first issue,help wanted,invalid,question,wontfix'
+        with:
+          gemini_api_key: '${{ secrets.GEMINI_API_KEY }}'
+          workflow_name: 'poc-f3-printenv'
+          # EXACT same settings as gemini-scheduled-triage.yml:112-129
+          settings: |-
+            {
+              "model": {
+                "maxSessionTurns": 25
+              },
+              "tools": {
+                "core": [
+                  "run_shell_command(echo)",
+                  "run_shell_command(jq)",
+                  "run_shell_command(printenv)"
+                ]
+              }
+            }
+          prompt: '/gemini-scheduled-triage'
