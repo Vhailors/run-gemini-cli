@@ -46,6 +46,8 @@ jobs:
         with:
           gemini_api_key: '${{ secrets.GEMINI_API_KEY }}'
           workflow_name: 'poc-f3-printenv'
+          gemini_debug: 'true'
+          upload_artifacts: 'true'
           # EXACT same settings as gemini-scheduled-triage.yml:112-129
           settings: |-
             {
@@ -61,3 +63,10 @@ jobs:
               }
             }
           prompt: '/gemini-scheduled-triage'
+
+      - name: 'Display Gemini response output'
+        if: always()
+        run: |-
+          echo "=== GEMINI RESPONSE OUTPUT ==="
+          echo "${{ steps.gemini_issue_analysis.outputs.gemini_response }}"
+          echo "=== END GEMINI RESPONSE ==="
